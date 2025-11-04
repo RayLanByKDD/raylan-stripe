@@ -1,15 +1,43 @@
-// server.js
+// ✅ Serveur Express Stripe – Ray&Lan By KDD
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
 
 const app = express();
-const stripe = new Stripe("sk_test_VOTRE_CLE_SECRETE_ICI"); // Mets ta clé secrète Stripe ici
-app.use(cors());
-app.use(express.json());
 
+// ✅ Clé secrète Stripe (test)
+const stripe = new Stripe("sk_test_51SK0Ig9xTIHdFCkDSvEJxw3EYB2O8oA5Wn3tVSPPGqfJzMCj7uP6BoN0uxc3U1mOGXqG6VvW5xwRp5rOC8bVxHog00e8jIsv5a");
+
+// ✅ Domaine autorisé (ton seul site Netlify actif)
+const ALLOWED_ORIGINS = [
+  "https://beamish-bombolone-028ed1.netlify.app" // ton site officiel
+];
+
+// ✅ Middleware
+app.use(express.json());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
+      }
+    },
+    methods: ["POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
+// ✅ Route principale Stripe
 app.post("/create-checkout-session", async (req, res) => {
   try {
+    const { amount, productName } = req.body;
+
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ error: "Montant invalide ou manquant." });
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -17,20 +45,25 @@ app.post("/create-checkout-session", async (req, res) => {
         {
           price_data: {
             currency: "eur",
-            product_data: { name: "Réservation Ray&Lan" },
-            unit_amount: 2000, // Prix en centimes (€20)
+            product_data: { name: productName || "Réservation Ray&Lan By KDD" },
+            unit_amount: parseInt(amount),
           },
           quantity: 1,
         },
       ],
-      success_url: "https://tonsite.netlify.app/success.html",
-      cancel_url: "https://tonsite.netlify.app/cancel.html",
+      success_url: "https://beamish-bombolone-028ed1.netlify.app/success.html",
+      cancel_url: "https://beamish-bombolone-028ed1.netlify.app/cancel.html",
     });
 
     res.json({ url: session.url });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("❌ Erreur Stripe :", error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(10000, () => console.log("Serveur Stripe en ligne sur Render"));
+// ✅ Route de test
+app.get("/health", (req, res) => res.send("✅ Serveur Stripe actif sur Render"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Serveur Stripe en ligne sur le port ${PORT}`));
