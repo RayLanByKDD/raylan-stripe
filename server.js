@@ -5,13 +5,12 @@ import cors from "cors";
 
 const app = express();
 
-// ✅ Ta clé secrète Stripe (test)
+// ✅ Clé secrète Stripe (test)
 const stripe = new Stripe("sk_test_51SK0Ig9xTIHdFCkDSvEJxw3EYB2O8oA5Wn3tVSPPGqfJzMCj7uP6BoN0uxc3U1mOGXqG6VvW5xwRp5rOC8bVxHog00e8jIsv5a");
 
-// ✅ Domaines autorisés (Netlify)
+// ✅ Domaine autorisé (ton seul site Netlify actif)
 const ALLOWED_ORIGINS = [
-  "https://sh-bombolone-028ed1.netlify.app",  // ton site actuel
-  "https://graceful-pothos-d95f48.netlify.app" // ancien site (optionnel)
+  "https://beamish-bombolone-028ed1.netlify.app" // ton site officiel
 ];
 
 // ✅ Middleware
@@ -36,7 +35,7 @@ app.post("/create-checkout-session", async (req, res) => {
     const { amount, productName } = req.body;
 
     if (!amount || isNaN(amount)) {
-      return res.status(400).json({ error: "Montant invalide." });
+      return res.status(400).json({ error: "Montant invalide ou manquant." });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -47,24 +46,23 @@ app.post("/create-checkout-session", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: { name: productName || "Réservation Ray&Lan By KDD" },
-            unit_amount: amount, // en centimes
+            unit_amount: parseInt(amount),
           },
           quantity: 1,
         },
       ],
-      success_url: "https://sh-bombolone-028ed1.netlify.app/success.html",
-      cancel_url: "https://sh-bombolone-028ed1.netlify.app/cancel.html",
+      success_url: "https://beamish-bombolone-028ed1.netlify.app/success.html",
+      cancel_url: "https://beamish-bombolone-028ed1.netlify.app/cancel.html",
     });
 
-    // ✅ Retourne le lien Stripe
-    return res.json({ url: session.url });
+    res.json({ url: session.url });
   } catch (error) {
-    console.error("❌ Erreur Stripe :", error);
-    return res.status(500).json({ error: error.message });
+    console.error("❌ Erreur Stripe :", error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ✅ Vérif simple
+// ✅ Route de test
 app.get("/health", (req, res) => res.send("✅ Serveur Stripe actif sur Render"));
 
 const PORT = process.env.PORT || 3000;
