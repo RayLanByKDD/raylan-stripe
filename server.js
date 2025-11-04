@@ -5,58 +5,67 @@ import cors from "cors";
 
 const app = express();
 
-// ✅ Clé secrète Stripe (test)
+// ✅ Ta clé secrète Stripe (test)
 const stripe = new Stripe("sk_test_51SK0Ig9xTIHdFCkDSvEJxw3EYB2O8oA5Wn3tVSPPGqfJzMCj7uP6BoN0uxc3U1mOGXqG6VvW5xwRp5rOC8bVxHog00e8jIsv5a");
 
-// ✅ Domaines autorisés (ton site Netlify)
+// ✅ Domaines autorisés (Netlify)
 const ALLOWED_ORIGINS = [
-  "https://graceful-pothos-d95f48.netlify.app",
-  "https://beamish-bombolone-028ed1.netlify.app",
-  "https://sh-bombolone-028ed1.netlify.app"
+  "https://sh-bombolone-028ed1.netlify.app",  // ton site actuel
+  "https://graceful-pothos-d95f48.netlify.app" // ancien site (optionnel)
 ];
 
+// ✅ Middleware
 app.use(express.json());
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error("Non autorisé par CORS"));
-  },
-  methods: ["POST"],
-  allowedHeaders: ["Content-Type"]
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
+      }
+    },
+    methods: ["POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 
-// ✅ Route pour créer une session Stripe Checkout
+// ✅ Route principale Stripe
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const { amount, productName } = req.body;
-    if (!amount) return res.status(400).json({ error: "Montant manquant" });
+
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ error: "Montant invalide." });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
-      line_items: [{
-        price_data: {
-          currency: "eur",
-          product_data: { name: productName || "Course Ray&Lan By KDD" },
-          unit_amount: amount
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: { name: productName || "Réservation Ray&Lan By KDD" },
+            unit_amount: amount, // en centimes
+          },
+          quantity: 1,
         },
-        quantity: 1
-      }],
-      success_url: "https://graceful-pothos-d95f48.netlify.app/success.html",
-      cancel_url: "https://graceful-pothos-d95f48.netlify.app/cancel.html"
+      ],
+      success_url: "https://sh-bombolone-028ed1.netlify.app/success.html",
+      cancel_url: "https://sh-bombolone-028ed1.netlify.app/cancel.html",
     });
 
-    res.json({ url: session.url }); // ✅ renvoie bien l'URL Stripe
-  } catch (err) {
-    console.error("Erreur Stripe:", err);
-    res.status(500).json({ error: err.message });
+    // ✅ Retourne le lien Stripe
+    return res.json({ url: session.url });
+  } catch (error) {
+    console.error("❌ Erreur Stripe :", error);
+    return res.status(500).json({ error: error.message });
   }
 });
 
-// ✅ Test rapide
-app.get("/", (req, res) => res.send("🚀 Serveur Stripe Ray&Lan actif"));
+// ✅ Vérif simple
+app.get("/health", (req, res) => res.send("✅ Serveur Stripe actif sur Render"));
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ Serveur Stripe en ligne sur le port ${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Serveur Stripe en ligne sur le port ${PORT}`));
